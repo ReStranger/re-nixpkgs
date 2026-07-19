@@ -4,6 +4,7 @@
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
   outputs = inputs @ {flake-parts, ...}:
@@ -23,7 +24,7 @@
         };
       };
       flake = {
-        overlays.default = final: prev:
+        overlays.default = final: _prev:
           final.lib.filesystem.packagesFromDirectoryRecursive {
             inherit (final) callPackage;
             directory = ./pkgs;
