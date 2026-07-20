@@ -29,7 +29,6 @@ in
     sourceRoot =
       {
         aarch64-darwin = "bun-darwin-aarch64";
-        x86_64-darwin = "bun-darwin-x64";
       }
       .${
         stdenvNoCC.hostPlatform.system
@@ -86,10 +85,6 @@ in
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-linux-aarch64.zip";
           hash = "sha256-d9GiVwDTRo+gMkmbg8d5d61Uypfo65Q93b6fhvyBhS0=";
         };
-        "x86_64-darwin" = fetchurl {
-          url = "https://github.com/oven-sh/bun/releases/download/canary/bun-darwin-x64.zip";
-          hash = "sha256-wSMihcw3YHG5PpwKR7x94Etoe6oMPX7E2OitknqIgKA=";
-        };
         "x86_64-linux" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-linux-x64.zip";
           hash = "sha256-qVNZHf+n1NsqGtYZOlMXC0rsqI+re9BO4KD3ItRqbVA=";
@@ -108,7 +103,7 @@ in
         sed -i "s/^  commit = \"[a-f0-9]*\";$/  commit = \"$commit\";/" "$package_nix"
         sed -i "s/^  date = \"[0-9]*\";$/  date = \"$date\";/" "$package_nix"
 
-        for asset in bun-darwin-aarch64.zip bun-linux-aarch64.zip bun-darwin-x64.zip bun-linux-x64.zip; do
+        for asset in bun-darwin-aarch64.zip bun-linux-aarch64.zip bun-linux-x64.zip; do
           url="https://github.com/oven-sh/bun/releases/download/canary/$asset"
           hash=$(nix store prefetch-file --json --hash-type sha256 "$url" | jq -r '.hash')
           sed -i "/$asset/,/hash/{s|hash = \".*\"|hash = \"$hash\"|}" "$package_nix"
@@ -136,6 +131,6 @@ in
       maintainers = with lib.maintainers; [ReStranger];
       platforms = builtins.attrNames finalAttrs.passthru.sources;
       broken = stdenvNoCC.hostPlatform.isMusl;
-      hydraPlatforms = lib.lists.remove "x86_64-darwin" lib.platforms.all;
+      hydraPlatforms = lib.platforms.linux ++ lib.platforms.darwin;
     };
   })
