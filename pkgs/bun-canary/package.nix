@@ -10,17 +10,13 @@
   cctools,
   darwin,
   rcodesign,
-  writeShellScript,
-  curl,
-  jq,
-  git,
 }: let
-  commit = "b284bbb97a42089f52de0e269c20a383f58c6b15";
+  commit = "b18d5df35e75997b231411dc9dfa97d2eb00c7ba";
   date = "20260720";
 in
   stdenvNoCC.mkDerivation (finalAttrs: {
     pname = "bun-canary";
-    version = "consolidation-step-7-green";
+    version = "canary-${builtins.substring 0 7 commit}";
 
     src =
       finalAttrs.passthru.sources.${stdenvNoCC.hostPlatform.system}
@@ -29,6 +25,8 @@ in
     sourceRoot =
       {
         aarch64-darwin = "bun-darwin-aarch64";
+        aarch64-linux  = "bun-linux-aarch64";
+        x86_64-linux   = "bun-linux-x64";
       }
       .${
         stdenvNoCC.hostPlatform.system
@@ -41,7 +39,8 @@ in
         installShellFiles
         makeWrapper
       ]
-      ++ lib.optionals stdenvNoCC.hostPlatform.isLinux [autoPatchelfHook];
+      ++ lib.optionals stdenvNoCC.hostPlatform.isLinux [autoPatchelfHook]
+      ++ lib.optionals stdenvNoCC.hostPlatform.isDarwin [cctools rcodesign];
     buildInputs = [openssl];
 
     dontConfigure = true;
@@ -79,40 +78,19 @@ in
       sources = {
         "aarch64-darwin" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-darwin-aarch64.zip";
-          hash = "sha256-BxZ7G+GTts3ISsBxY1VFOWPQhmUWnHTomwK/zs9QWgI=";
+          hash = "sha256-4zmcf5gVZSbx09MKC7m6qKKivcUUv5v0sUWDDzIruQM=";
         };
         "aarch64-linux" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-linux-aarch64.zip";
-          hash = "sha256-d9GiVwDTRo+gMkmbg8d5d61Uypfo65Q93b6fhvyBhS0=";
+          hash = "sha256-texQEiILkFp7rM1eUE5WNBUDSS4m7EqEmCYV63uDiV0=";
         };
         "x86_64-linux" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-linux-x64.zip";
-          hash = "sha256-qVNZHf+n1NsqGtYZOlMXC0rsqI+re9BO4KD3ItRqbVA=";
+          hash = "sha256-zROHcmkwmA7Z0WFwDOxtYa0MoBNPdd4BFD3kE1EsRPo=";
         };
       };
       inherit commit date;
-      updateScript = writeShellScript "update-bun-canary" ''
-        set -euo pipefail
-
-        repo_root="$(git rev-parse --show-toplevel)"
-        package_nix="$repo_root/pkgs/bun-canary/package.nix"
-
-        commit=$(curl -fsSL "https://api.github.com/repos/oven-sh/bun/commits/main" | jq -r '.sha')
-        date=$(curl -fsSL "https://api.github.com/repos/oven-sh/bun/commits/main" | jq -r '.commit.committer.date' | tr -d '-' | cut -c1-8)
-
-        sed -i "s/^  commit = \"[a-f0-9]*\";$/  commit = \"$commit\";/" "$package_nix"
-        sed -i "s/^  date = \"[0-9]*\";$/  date = \"$date\";/" "$package_nix"
-
-        for asset in bun-darwin-aarch64.zip bun-linux-aarch64.zip bun-linux-x64.zip; do
-          url="https://github.com/oven-sh/bun/releases/download/canary/$asset"
-          hash=$(nix store prefetch-file --json --hash-type sha256 "$url" | jq -r '.hash')
-          sed -i "/$asset/,/hash/{s|hash = \".*\"|hash = \"$hash\"|}" "$package_nix"
-        done
-
-        echo "Updated $package_nix"
-        echo "commit=$commit"
-        echo "date=$date"
-      '';
+      updateScript = ./update.sh;
     };
 
     meta = {
