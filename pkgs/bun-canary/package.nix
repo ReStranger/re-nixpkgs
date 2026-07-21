@@ -11,7 +11,7 @@
   darwin,
   rcodesign,
 }: let
-  commit = "c3d184f5d2fe3fa3cda1964da0594d434752f31a";
+  commit = "602db999be60abbf4876a6d4e6b98d6df70a2265";
   date = "20260721";
 in
   stdenvNoCC.mkDerivation (finalAttrs: {
@@ -78,15 +78,15 @@ in
       sources = {
         "aarch64-darwin" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-darwin-aarch64.zip";
-          hash = "sha256-GtOsbSv2EnFwZ7D085hzOIsLOPdmuSbRVzHxgz6Mum0=";
+          hash = "sha256-p8CC9Ua0031l0D0xXezJ9oQJiw+aJIntiS+h+uFTJ+I=";
         };
         "aarch64-linux" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-linux-aarch64.zip";
-          hash = "sha256-zxBZeGxLit4t/iBWuXbxYXYoyN4+EYhLdL3aoMV0xEg=";
+          hash = "sha256-n+Xnv5PzG/Uiyc+GorClag8cLJLQndOHfgvcwg1lgmk=";
         };
         "x86_64-linux" = fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/canary/bun-linux-x64.zip";
-          hash = "sha256-yACiCP6HZP4Mi9zaiBPxR0lhd4vpwtqLJFKCAqFHG20=";
+          hash = "sha256-n4woKn3CxqYGhGj8CXVEh/nw8F6DS+C3m8y90dDOSKg=";
         };
       };
       inherit commit date;
