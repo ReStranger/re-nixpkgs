@@ -1,5 +1,5 @@
-{pkgs, ...}: {
-  perSystem = _: {
+_: {
+  perSystem = { pkgs, ... }: {
     devShells.default = pkgs.mkShell {
       packages = with pkgs; [
         nix-update
