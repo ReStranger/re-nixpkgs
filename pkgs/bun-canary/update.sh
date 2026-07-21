@@ -16,22 +16,22 @@ fi
 # Fetch the commit date
 date=$(curl -fsSL "https://api.github.com/repos/oven-sh/bun/commits/$commit" | jq -r '.commit.committer.date' | tr -d '-' | cut -c1-8)
 
-# Fetch SHA256SUMS.txt from canary release for all asset hashes
-hashes_txt=$(curl -fsSL "https://github.com/oven-sh/bun/releases/download/canary/SHASUMS256.txt")
-
-# Update commit and date in package.nix
+# Update commit and date first
 sed -i "s/^  commit = \"[a-f0-9]*\";$/  commit = \"$commit\";/" "$package_nix"
 sed -i "s/^  date = \"[0-9]*\";$/  date = \"$date\";/" "$package_nix"
 
-# Update hashes for each asset from SHASUMS256.txt
+# Download each asset and compute its hash, then update package.nix
+# This avoids race conditions with the moving canary tag.
 for asset in bun-darwin-aarch64.zip bun-linux-aarch64.zip bun-linux-x64.zip; do
-  # Extract hex hash from SHASUMS256.txt (format: "<hex>  <filename>")
-  hex_hash=$(echo "$hashes_txt" | grep "  $asset$" | awk '{print $1}')
-  if [[ -z "$hex_hash" ]]; then
-    echo "ERROR: Could not find hash for $asset in SHASUMS256.txt"
+  url="https://github.com/oven-sh/bun/releases/download/canary/$asset"
+  echo "Downloading $asset..."
+  hash_info=$(nix store prefetch-file --json --hash-type sha256 "$url" 2>/dev/null || true)
+  if [[ -z "$hash_info" ]]; then
+    echo "ERROR: Failed to download $asset"
     exit 1
   fi
-  sri_hash=$(nix hash convert --to sri --hash-algo sha256 "$hex_hash")
+  sri_hash=$(echo "$hash_info" | jq -r '.hash')
+  echo "  hash: $sri_hash"
   sed -i "/$asset/,/hash/{s|hash = \".*\"|hash = \"$sri_hash\"|}" "$package_nix"
 done
 

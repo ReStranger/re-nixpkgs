@@ -1,0 +1,123 @@
+name: Cachix Push
+
+on:
+  push:
+    branches: [main]
+    paths: ['pkgs/**/*.nix']
+  workflow_dispatch:
+
+jobs:
+  # ------------------------------------------------------------------
+  # Detect which packages changed
+  # ------------------------------------------------------------------
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so we can diff event.before..event.after
+          fetch-depth: 0
+
+      - id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual run → rebuild every package under pkgs/
+            PACKAGES=$(ls -d pkgs/*/ 2>/dev/null \
+              | sed 's|pkgs/||;s|/||' \
+              | jq -R -s -c 'split("\n")[:-1]')
+          else
+            # Push → only packages touched in this commit
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.event.after }}"
+
+            # On the very first push to the branch 'before' is all‑zeros
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              PACKAGES=$(ls -d pkgs/*/ 2>/dev/null \
+                | sed 's|pkgs/||;s|/||' \
+                | jq -R -s -c 'split("\n")[:-1]')
+            else
+              # Detect any .nix file changed under pkgs/
+              CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" -- 'pkgs/**/*.nix' 2>/dev/null || true)
+              if [ -z "$CHANGED" ]; then
+                PACKAGES='[]'
+              else
+                # Extract the package directory name from the path
+                # e.g. pkgs/bun-canary/package.nix → bun-canary
+                PACKAGES=$(echo "$CHANGED" \
+                  | sed 's|pkgs/\([^/]*\)/.*|\1|' \
+                  | sort -u \
+                  | jq -R -s -c 'split("\n")[:-1]')
+              fi
+            fi
+          fi
+          echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
+
+  # ------------------------------------------------------------------
+  # Build changed packages on every supported platform and push to Cachix
+  # ------------------------------------------------------------------
+  build:
+    needs: detect
+    if: ${{ needs.detect.outputs.packages != '[]' && needs.detect.outputs.packages != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.detect.outputs.packages) }}
+        system:
+          - x86_64-linux
+          - aarch64-linux
+          - aarch64-darwin
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - system: aarch64-darwin
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Authenticate with Cachix
+        uses: cachix/cachix-action@v14
+        with:
+          name: re-nixpkgs
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Check if ${{ matrix.package }} supports ${{ matrix.system }}
+        id: check
+        continue-on-error: true
+        run: |
+          # Query the package's meta.platforms; if the current system isn't listed,
+          # we skip the build to avoid a noisy failure.
+          PLATFORMS=$(nix eval ".#${{ matrix.package }}.meta.platforms" --json 2>/dev/null || echo "[]")
+          if echo "$PLATFORMS" | jq -e '. | index("${{ matrix.system }}")' >/dev/null 2>&1; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+            echo "${{ matrix.system }} is supported by ${{ matrix.package }}"
+          else
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "${{ matrix.system }} is NOT supported by ${{ matrix.package }}, skipping"
+          fi
+
+      - name: Build ${{ matrix.package }} on ${{ matrix.system }}
+        if: ${{ steps.check.outputs.supported == 'true' }}
+        id: build
+        run: |
+          echo "Building ${{ matrix.package }} for ${{ matrix.system }}..."
+          nix build ".#${{ matrix.package }}" \
+            --print-build-logs
+
+      - name: Push ${{ matrix.package }} to Cachix
+        if: ${{ steps.check.outputs.supported == 'true' && steps.build.outcome == 'success' }}
+        run: |
+          echo "Pushing ${{ matrix.package }} to Cachix..."
+          # 'result' symlink created by 'nix build' above
+          cachix push re-nixpkgs result
+          rm -f result

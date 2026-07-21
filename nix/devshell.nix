@@ -6,6 +6,7 @@
         nurl
         nix-prefetch-github
         jq
+        cachix
       ];
     };
   };

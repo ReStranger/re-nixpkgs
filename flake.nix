@@ -7,6 +7,13 @@
     treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
+  nixConfig = {
+    extra-substituters = [ "https://re-nixpkgs.cachix.org" ];
+    extra-trusted-public-keys = [
+      "re-nixpkgs.cachix.org-1:yp0DeOCu+yrfJ3u3Ih9JopChk1MCKbkFvH2gMmzrOdw="
+    ];
+  };
+
   outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
       imports = let
